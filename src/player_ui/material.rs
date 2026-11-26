@@ -1,3 +1,4 @@
+#[path = "material/rim.rs"]
 mod rim;
 
 use iced::{Border, Color, Element, Font, Length, Padding, Theme, widget::container};
@@ -261,13 +262,13 @@ fn surface<'a, M: 'a>(
                 blur_radius: if elevation.raised() { 22. } else { 28. },
                 saturation: 1.12,
                 lightness: 0.02,
-                edge_radius: 8.,
-                edge_height: 3.,
-                refractive_index: 1.12,
+                edge_radius: 10.,
+                edge_height: if elevation.raised() { 18. } else { 12. },
+                refractive_index: 1.45,
                 chromatic_aberration: 0.0,
-                rim_width: 0.65,
+                rim_width: 1.,
                 rim_angle: -std::f32::consts::FRAC_PI_2,
-                opacity: 0.98,
+                opacity: 1.,
                 ..Default::default()
             })
             .style(style)

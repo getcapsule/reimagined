@@ -824,10 +824,10 @@ fn collapsed_sidebar_keeps_navigation_actions_accessible() -> anyhow::Result<()>
     ))
     .expect("test renderer");
     for (y, screen) in [
-        (135., Screen::Library),
-        (580., Screen::Audio),
-        (620., Screen::Settings),
-        (95., Screen::Discover),
+        (155., Screen::Library),
+        (600., Screen::Audio),
+        (640., Screen::Settings),
+        (115., Screen::Discover),
     ] {
         let mut ui =
             UserInterface::build(app.view(), WINDOW_SIZE, Default::default(), &mut renderer);
@@ -843,7 +843,11 @@ fn collapsed_sidebar_keeps_navigation_actions_accessible() -> anyhow::Result<()>
             &mut messages,
         );
         drop(ui);
-        assert_eq!(messages.len(), 1, "collapsed icon emits its action");
+        assert_eq!(
+            messages.len(),
+            1,
+            "collapsed icon at y={y} emits its action"
+        );
         let _ = app.update(messages.pop().unwrap());
         assert!(app.screen == screen);
         assert!(!app.sidebar_expanded);
@@ -852,7 +856,7 @@ fn collapsed_sidebar_keeps_navigation_actions_accessible() -> anyhow::Result<()>
 }
 
 #[test]
-fn volume_pill_works_at_normal_and_minimum_widths() -> anyhow::Result<()> {
+fn vertical_volume_popup_works_at_normal_and_minimum_widths() -> anyhow::Result<()> {
     use iced_runtime::{
         UserInterface,
         core::{clipboard, mouse, renderer::Headless},
@@ -864,12 +868,9 @@ fn volume_pill_works_at_normal_and_minimum_widths() -> anyhow::Result<()> {
         Some("tiny-skia"),
     ))
     .expect("test renderer");
-    for (size, point) in [
-        (WINDOW_SIZE, iced::Point::new(970., 707.)),
-        (iced::Size::new(570., 700.), iced::Point::new(480., 667.)),
-    ] {
-        app.window_size = size;
-        let mut ui = UserInterface::build(app.view(), size, Default::default(), &mut renderer);
+    let click = |app: &App, renderer: &mut iced::Renderer, point: iced::Point| {
+        let mut ui =
+            UserInterface::build(app.view(), app.window_size, Default::default(), renderer);
         let mut messages = Vec::new();
         let _ = ui.update(
             &[
@@ -877,15 +878,90 @@ fn volume_pill_works_at_normal_and_minimum_widths() -> anyhow::Result<()> {
                 iced::Event::Mouse(mouse::Event::ButtonReleased(mouse::Button::Left)),
             ],
             mouse::Cursor::Available(point),
-            &mut renderer,
+            renderer,
             &mut clipboard::Null,
             &mut messages,
         );
+        messages
+    };
+    for size in [WINDOW_SIZE, iced::Size::new(570., 700.)] {
+        app.window_size = size;
+        let x = size.width - 67.5;
+        let messages = click(&app, &mut renderer, iced::Point::new(x, size.height - 33.));
+        assert_eq!(messages.len(), 1, "speaker opens the popup");
         assert!(
-            messages
-                .iter()
-                .any(|m| matches!(m, Message::Volume(value) if *value < 65)),
-            "volume slider remains usable"
+            !messages.iter().any(|m| matches!(m, Message::Volume(_))),
+            "opening the popup does not change volume"
+        );
+        for msg in messages {
+            let _ = app.update(msg);
+        }
+        for (y, high) in [(size.height - 203., true), (size.height - 87., false)] {
+            let messages = click(&app, &mut renderer, iced::Point::new(x, y));
+            assert!(
+                messages.iter().any(
+                    |m| matches!(m, Message::Volume(v) if if high { *v > 80 } else { *v < 20 })
+                ),
+                "vertical slider increases upward and decreases downward"
+            );
+            for msg in messages {
+                let _ = app.update(msg);
+            }
+        }
+        let mut ui = UserInterface::build(app.view(), size, Default::default(), &mut renderer);
+        let mut dragged = Vec::new();
+        for (event, y) in [
+            (
+                mouse::Event::ButtonPressed(mouse::Button::Left),
+                size.height - 203.,
+            ),
+            (
+                mouse::Event::CursorMoved {
+                    position: iced::Point::new(x, size.height - 87.),
+                },
+                size.height - 87.,
+            ),
+            (
+                mouse::Event::ButtonReleased(mouse::Button::Left),
+                size.height - 87.,
+            ),
+        ] {
+            let _ = ui.update(
+                &[iced::Event::Mouse(event)],
+                mouse::Cursor::Available(iced::Point::new(x, y)),
+                &mut renderer,
+                &mut clipboard::Null,
+                &mut dragged,
+            );
+        }
+        drop(ui);
+        let values: Vec<_> = dragged
+            .iter()
+            .filter_map(|message| {
+                if let Message::Volume(value) = message {
+                    Some(*value)
+                } else {
+                    None
+                }
+            })
+            .collect();
+        assert!(
+            values.first().is_some_and(|value| *value > 80)
+                && values.last().is_some_and(|value| *value < 20),
+            "dragging the vertical slider changes volume continuously"
+        );
+        for msg in dragged {
+            let _ = app.update(msg);
+        }
+        let screen = app.screen;
+        let messages = click(&app, &mut renderer, iced::Point::new(35., 140.));
+        assert_eq!(messages.len(), 1, "outside click dismisses the popup");
+        for msg in messages {
+            let _ = app.update(msg);
+        }
+        assert!(
+            app.screen == screen,
+            "dismissal does not activate sidebar navigation"
         );
     }
     Ok(())

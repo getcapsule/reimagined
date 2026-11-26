@@ -7,7 +7,7 @@ use iced::{
     Color, Element, Length,
     widget::{
         button, column, container, pick_list, row, rule::horizontal as horizontal_rule, slider,
-        space::horizontal as horizontal_space, text,
+        space::horizontal as horizontal_space, text, vertical_slider,
     },
 };
 use std::time::Duration;
@@ -245,7 +245,7 @@ impl App {
             body
         };
         let middle = row![
-            container(sidebar).padding(iced::Padding::default().bottom(96)),
+            container(sidebar).padding(iced::Padding::default().top(20).bottom(76)),
             container(body)
                 .padding(if compact { 12 } else { 18 })
                 .width(Length::Fill)
@@ -292,7 +292,7 @@ impl App {
         stack![
             super::background::view(art),
             chrome,
-            container(iced::widget::opaque(self.dock()))
+            container(self.dock())
                 .padding(9)
                 .align_bottom(Length::Fill)
                 .width(Length::Fill),
@@ -524,6 +524,38 @@ impl App {
         material::floating(self.appearance, queue, 12, Length::Fill, Length::Shrink)
     }
 
+    pub(super) fn volume_popup(&self) -> Element<'_, Message> {
+        let level = vertical_slider(0..=100, self.volume, Message::Volume)
+            .height(136)
+            .width(24)
+            .style(|theme, status| {
+                let mut style = slider::default(theme, status).with_circular_handle(5.);
+                style.rail.width = 3.;
+                style.rail.backgrounds = (
+                    Color::WHITE.into(),
+                    Color::from_rgba(1., 1., 1., 0.19).into(),
+                );
+                style
+            });
+        let popup = material::floating(
+            self.appearance,
+            column![
+                text(format!("{}%", self.volume)).size(11).color(SECONDARY),
+                level
+            ]
+            .spacing(10)
+            .align_x(Alignment::Center),
+            [12, 10],
+            56,
+            184,
+        );
+        container(iced::widget::opaque(popup))
+            .padding(iced::Padding::default().right(40).bottom(65))
+            .align_right(Length::Fill)
+            .align_bottom(Length::Fill)
+            .into()
+    }
+
     fn dock(&self) -> Element<'_, Message> {
         let compact = self.window_size.width < 760.;
         let item = self.queue.current();
@@ -666,18 +698,14 @@ impl App {
         ]
         .spacing(8)
         .align_y(Alignment::Center);
-        let volume = slider(0..=100, self.volume, Message::Volume)
-            .height(24)
-            .width(Length::Fill)
-            .style(|theme, status| slider::default(theme, status).with_circular_handle(4.));
         let options = row![
-            (!compact).then(|| icon!("audio")),
-            tooltip(
-                volume,
-                text(format!("Volume {}%", self.volume)).size(12),
-                tooltip::Position::Top
-            )
-            .style(material::tooltip),
+            control(
+                icon!("audio"),
+                "Volume",
+                Some(Message::ToggleVolume),
+                false,
+                self.volume_open,
+            ),
             control(
                 icon!("queue"),
                 if self.queue_is_open() {
@@ -690,43 +718,43 @@ impl App {
                 self.queue_is_open()
             ),
         ]
-        .spacing(if compact { 6 } else { 8 })
+        .spacing(8)
         .align_y(Alignment::Center);
         let playback = column![
-            container(material::floating(
+            container(iced::widget::opaque(material::floating(
                 self.appearance,
                 transport,
                 [4, 10],
                 Length::Shrink,
                 42,
-            ))
+            )))
             .center_x(Length::Fill),
-            material::floating(
+            iced::widget::opaque(material::floating(
                 self.appearance,
                 container(timeline).center_y(Length::Fill),
                 [6, 10],
                 Length::Fill,
                 PLAYER_PILL_HEIGHT,
-            ),
+            )),
         ]
         .spacing(8)
         .width(Length::Fill);
         let pills = row![
-            material::floating(
+            iced::widget::opaque(material::floating(
                 self.appearance,
                 metadata,
                 [2, 8],
                 if compact { 106 } else { 220 },
                 PLAYER_PILL_HEIGHT,
-            ),
+            )),
             playback,
-            material::floating(
+            iced::widget::opaque(material::floating(
                 self.appearance,
                 container(options).center_y(Length::Fill),
                 [8, 10],
-                if compact { 108 } else { 154 },
+                82,
                 PLAYER_PILL_HEIGHT,
-            ),
+            )),
         ]
         .spacing(10)
         .align_y(Alignment::End);

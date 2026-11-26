@@ -677,6 +677,7 @@ dependencies = [
  "iced_runtime",
  "image 0.24.9",
  "lofty",
+ "log",
  "raw-window-handle",
  "reqwest",
  "rfd",

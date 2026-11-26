@@ -30,6 +30,7 @@ symphonia = { version = "0.5.5", default-features = false, features = ["aac", "f
 thiserror = "2"
 
 [dev-dependencies]
+log = "0.4"
 iced_runtime = { git = "https://github.com/maxbergmark/iced", branch = "test/force_copy_src" }
 
 [target.'cfg(windows)'.dependencies]

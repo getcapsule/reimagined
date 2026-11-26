@@ -92,7 +92,7 @@ impl Hsl {
             saturation: if self.saturation < 0.04 {
                 0.
             } else {
-                (self.saturation * 1.12 + 0.04).clamp(0.36, 0.64)
+                (self.saturation * 1.18 + 0.05).clamp(0.36, 0.64)
             },
             ..self
         }
@@ -138,7 +138,7 @@ impl Bucket {
         }
     }
 }
-fn palette(source: &::image::RgbaImage) -> Option<[Glow; 2]> {
+fn palette(source: &::image::RgbaImage) -> Option<[Glow; 4]> {
     let mut buckets = [Bucket::default(); 24];
     let mut neutral = Bucket::default();
     for (x, y, pixel) in source.enumerate_pixels() {
@@ -183,22 +183,45 @@ fn palette(source: &::image::RgbaImage) -> Option<[Glow; 2]> {
                 position: [0.9, 0.8],
                 ..glow
             },
+            Glow {
+                strength: 0.045,
+                position: [0.12, 0.85],
+                ..glow
+            },
+            Glow {
+                strength: 0.03,
+                position: [0.9, 0.95],
+                ..glow
+            },
         ]);
     }
     let second = order.into_iter().find(|i| {
         let distance = first.abs_diff(*i);
         distance.min(24 - distance) >= 4 && buckets[*i].weight >= main.weight * 0.2
     });
-    let primary = main.glow(0.16);
+    let primary = main.glow(0.22);
     let secondary = second.map_or(
         Glow {
-            strength: 0.035,
+            strength: 0.05,
             position: [0.9, 0.8],
             ..primary
         },
-        |i| buckets[i].glow(0.09),
+        |i| buckets[i].glow(0.13),
     );
-    Some([primary, secondary])
+    Some([
+        primary,
+        secondary,
+        Glow {
+            strength: 0.09,
+            position: [0.12, 0.85],
+            ..primary
+        },
+        Glow {
+            strength: 0.07,
+            position: [0.9, 0.95],
+            ..secondary
+        },
+    ])
 }
 
 pub(super) fn album(path: &Path) -> Option<PageArt> {
@@ -333,5 +356,25 @@ mod tests {
         );
         let transparent = image::Handle::from_rgba(2, 2, vec![0; 16]);
         assert!(colors(&transparent).is_none());
+    }
+    #[test]
+    fn cover_light_reaches_sidebar_and_lower_controls() {
+        let cover = image::Handle::from_rgba(1, 1, vec![30, 160, 220, 255]);
+        let image::Handle::Rgba { pixels, .. } = colors(&cover).expect("ambient cover") else {
+            panic!("RGBA canvas")
+        };
+        let base = [BASE.r, BASE.g, BASE.b].map(|value| (value * 255.).round() as i16);
+        for (x, y) in [(4, 48), (26, 60), (55, 60)] {
+            let pixel = &pixels[(y * 64 + x) * 4..][..3];
+            let light = pixel
+                .iter()
+                .zip(base)
+                .map(|(value, base)| (i16::from(*value) - base).abs())
+                .sum::<i16>();
+            assert!(
+                light >= 12,
+                "cover light missing below glass at ({x}, {y}): {light}"
+            );
+        }
     }
 }

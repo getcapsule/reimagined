@@ -165,6 +165,7 @@ struct App {
     window_size: Size,
     sidebar_expanded: bool,
     queue_visible: bool,
+    volume_open: bool,
     transport: Transport,
     info: Option<TrackInfo>,
     devices: Vec<OutputDevice>,
@@ -212,6 +213,8 @@ enum Message {
     Resize(Size),
     ToggleSidebar,
     ToggleQueue,
+    ToggleVolume,
+    CloseVolume,
     Artwork(artwork::Key, Result<artwork::Details, String>),
     Playlists(playlists::Msg),
     ShowPlayer,
@@ -265,6 +268,7 @@ impl App {
             window_size: WINDOW_SIZE,
             sidebar_expanded: true,
             queue_visible: false,
+            volume_open: false,
             transport: Transport::Idle,
             info: None,
             device: OutputDevice::System,
@@ -492,7 +496,10 @@ impl App {
     fn handle(&mut self, message: Message) -> Task<Message> {
         self.poll();
         match message {
-            Message::Search(msg) => return self.search_action(msg),
+            Message::Search(msg) => {
+                self.volume_open = false;
+                return self.search_action(msg);
+            }
             #[cfg(windows)]
             Message::Maximized(maximized) => self.maximized = maximized,
             Message::Resize(size) => {
@@ -504,7 +511,13 @@ impl App {
             }
             Message::ToggleSidebar => self.sidebar_expanded = !self.sidebar_expanded,
             Message::ToggleQueue => self.queue_visible = !self.queue_is_open(),
+            Message::ToggleVolume => {
+                self.volume_open = !self.volume_open;
+                self.menu = None;
+            }
+            Message::CloseVolume => self.volume_open = false,
             Message::CloseMenu => {
+                self.volume_open = false;
                 self.menu = None;
                 if self.search.open {
                     return iced::widget::operation::focus(search::INPUT);
@@ -757,7 +770,7 @@ impl App {
     }
 
     fn subscription(&self) -> Subscription<Message> {
-        let dismiss = if self.menu.is_some() {
+        let dismiss = if self.menu.is_some() || self.volume_open {
             iced::event::listen_with(|event, _, _| match event {
                 iced::Event::Keyboard(iced::keyboard::Event::KeyPressed {
                     key: iced::keyboard::Key::Named(iced::keyboard::key::Named::Escape),
@@ -789,6 +802,14 @@ impl App {
     fn view(&self) -> Element<'_, Message> {
         use iced::widget::{Space, column, container, mouse_area, opaque, pin, stack, text};
         let mut layers = stack![self.shell()];
+        if self.volume_open {
+            layers = layers
+                .push(opaque(
+                    mouse_area(Space::new().width(iced::Fill).height(iced::Fill))
+                        .on_press(Message::CloseVolume),
+                ))
+                .push(self.volume_popup());
+        }
         if self.search.open {
             layers = layers.push(Element::new(context::PaletteBackdrop)).push(
                 container(opaque(
