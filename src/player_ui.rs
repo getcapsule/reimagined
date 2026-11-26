@@ -836,3 +836,5 @@ fn source_name(source: &Source) -> &str {
     }
 }
 
+#[cfg(test)]
+mod tests;
