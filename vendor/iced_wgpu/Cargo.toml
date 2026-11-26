@@ -1,0 +1,45 @@
+[package]
+name = "iced_wgpu"
+description = "A renderer for iced on top of wgpu"
+version = "0.14.0"
+edition = "2024"
+authors = ["Héctor Ramón Jiménez <hector@hecrj.dev>"]
+license = "MIT"
+repository = "https://github.com/iced-rs/iced"
+homepage = "https://iced.rs"
+categories = ["gui"]
+keywords = ["gui", "ui", "graphics", "interface", "widgets"]
+
+
+
+[package.metadata.docs.rs]
+rustdoc-args = ["--cfg", "docsrs"]
+all-features = true
+
+[features]
+default = ["wgpu/default"]
+geometry = ["iced_graphics/geometry", "lyon"]
+image = ["iced_graphics/image"]
+svg = ["iced_graphics/svg", "resvg/text"]
+web-colors = ["iced_graphics/web-colors"]
+webgl = ["wgpu/webgl"]
+strict-assertions = []
+
+[dependencies]
+iced_debug = { git = "https://github.com/maxbergmark/iced", branch = "test/force_copy_src" }
+iced_graphics = { git = "https://github.com/maxbergmark/iced", branch = "test/force_copy_src" }
+
+bitflags = "2.0"
+bytemuck = { version = "1.0", features = ["derive"] }
+futures = { version = "0.3", default-features = false, features = ["std", "async-await"] }
+glam = "0.25"
+cryoglyph = "0.1"
+guillotiere = "0.6"
+log = "0.4"
+rustc-hash = "2.0"
+thiserror = "2"
+wgpu = { version = "27.0", default-features = false, features = ["std", "wgsl"] }
+
+lyon = { version = "1.0", optional = true }
+
+resvg = { version = "0.45", optional = true }
