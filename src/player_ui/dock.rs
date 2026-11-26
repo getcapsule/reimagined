@@ -12,6 +12,8 @@ use iced::{
 };
 use std::time::Duration;
 
+const PLAYER_PILL_HEIGHT: f32 = 48.;
+
 const MUTED: Color = Color {
     r: 0.76,
     g: 0.76,
@@ -127,7 +129,9 @@ pub(super) fn control<'a, M: Clone + 'a>(
 
 impl App {
     fn sidebar_width(&self) -> f32 {
-        if self.window_size.width < 760. {
+        if !self.sidebar_expanded {
+            52.
+        } else if self.window_size.width < 760. {
             112.
         } else {
             144.
@@ -135,110 +139,116 @@ impl App {
     }
 
     fn content_width(&self) -> f32 {
-        self.window_size.width
-            - if self.sidebar_visible {
-                self.sidebar_width() + 8.
-            } else {
-                0.
-            }
+        self.window_size.width - self.sidebar_width() - 8.
     }
 
     pub(super) fn shell(&self) -> Element<'_, Message> {
-        let compact = self.sidebar_width() < 120.;
+        let compact = self.window_size.width < 760.;
         let busy = self.screen == Screen::Playlists && self.playlists.busy();
-        let nav = |symbol: iced::widget::Svg<'static>, name: &'static str, screen, msg| {
+        let nav = |symbol: iced::widget::Svg<'static>,
+                   name: &'static str,
+                   screen,
+                   msg|
+         -> Element<'_, Message> {
             let active = Some(self.screen) == screen;
-            super::material::button(
+            let face: Element<'_, Message> = if self.sidebar_expanded {
                 row![symbol, text(name).size(13)]
                     .align_y(Alignment::Center)
-                    .spacing(7),
-            )
-            .width(Length::Fill)
-            .padding([5, 6])
-            .on_press_maybe((!busy && !active).then_some(msg))
-            .style(move |theme, state| {
-                if active {
-                    soft_button(theme, state)
+                    .spacing(7)
+                    .into()
+            } else {
+                container(symbol).center_x(Length::Fill).into()
+            };
+            let button = material::button(face)
+                .width(Length::Fill)
+                .padding(if self.sidebar_expanded {
+                    [5, 6]
                 } else {
-                    super::material::text_button(theme, state)
-                }
-            })
+                    [9, 0]
+                })
+                .on_press_maybe((!busy && !active).then_some(msg))
+                .style(move |theme, state| {
+                    if active {
+                        soft_button(theme, state)
+                    } else {
+                        material::text_button(theme, state)
+                    }
+                });
+            if self.sidebar_expanded {
+                button.into()
+            } else {
+                tooltip(
+                    button,
+                    text(if name == "Search" {
+                        "Search (Ctrl+K)"
+                    } else {
+                        name
+                    })
+                    .size(13),
+                    tooltip::Position::Right,
+                )
+                .style(material::tooltip)
+                .into()
+            }
         };
         let brand = text("capsule").size(17).font(material::HEADING);
-        let sidebar = self.sidebar_visible.then(|| {
-            material::panel(
-                self.appearance,
-                column![
-                    text("Browse").size(11).color(MUTED),
-                    tooltip(
-                        nav(
-                            icon!("search"),
-                            "Search",
-                            None,
-                            Message::Search(super::search::Msg::Open)
-                        ),
-                        text("Search library (Ctrl+K)").size(13),
-                        tooltip::Position::Right
-                    )
-                    .style(super::material::tooltip),
-                    nav(
-                        icon!("discover"),
-                        "Discover",
-                        Some(Screen::Discover),
-                        Message::ShowDiscover
-                    ),
-                    nav(
-                        icon!("library"),
-                        "Library",
-                        Some(Screen::Library),
-                        Message::ShowLibrary
-                    ),
-                    nav(
-                        icon!("playlists"),
-                        "Playlists",
-                        Some(Screen::Playlists),
-                        Message::ShowPlaylists
-                    ),
-                    Space::new().height(Length::Fill),
-                    text("Controls").size(11).color(MUTED),
-                    nav(icon!("folder"), "Open files", None, Message::Browse),
-                    nav(
-                        icon!("audio"),
-                        "Audio",
-                        Some(Screen::Audio),
-                        Message::AudioSettings
-                    ),
-                    nav(
-                        icon!("settings"),
-                        "Settings",
-                        Some(Screen::Settings),
-                        Message::ShowSettings
-                    ),
-                    self.artwork
-                        .details
-                        .as_ref()
-                        .and_then(|d| d.art.as_ref())
-                        .map(|art| {
-                            let side = (self.sidebar_width() - 20.)
-                                .min((self.window_size.height - 370.).max(44.));
-                            image(&art.cover)
-                                .width(side)
-                                .height(side)
-                                .border_radius(material::RADIUS)
-                        })
-                ]
-                .spacing(5),
-                [8, 9],
-                self.sidebar_width(),
-                Length::Fill,
-            )
-        });
+        let sidebar = material::panel(
+            self.appearance,
+            column![
+                self.sidebar_expanded
+                    .then(|| text("Browse").size(11).color(MUTED)),
+                nav(
+                    icon!("search"),
+                    "Search",
+                    None,
+                    Message::Search(super::search::Msg::Open)
+                ),
+                nav(
+                    icon!("discover"),
+                    "Discover",
+                    Some(Screen::Discover),
+                    Message::ShowDiscover
+                ),
+                nav(
+                    icon!("library"),
+                    "Library",
+                    Some(Screen::Library),
+                    Message::ShowLibrary
+                ),
+                nav(
+                    icon!("playlists"),
+                    "Playlists",
+                    Some(Screen::Playlists),
+                    Message::ShowPlaylists
+                ),
+                Space::new().height(Length::Fill),
+                self.sidebar_expanded
+                    .then(|| text("Controls").size(11).color(MUTED)),
+                nav(icon!("folder"), "Open files", None, Message::Browse),
+                nav(
+                    icon!("audio"),
+                    "Audio",
+                    Some(Screen::Audio),
+                    Message::AudioSettings
+                ),
+                nav(
+                    icon!("settings"),
+                    "Settings",
+                    Some(Screen::Settings),
+                    Message::ShowSettings
+                ),
+            ]
+            .spacing(5),
+            [8, if self.sidebar_expanded { 9 } else { 6 }],
+            self.sidebar_width(),
+            Length::Fill,
+        );
         let body = match self.screen {
             Screen::Discover => self
                 .discover
                 .view(self.content_width() - if compact { 68. } else { 80. }),
             Screen::Player => container(self.listening_room())
-                .padding(iced::Padding::default().bottom(84))
+                .padding(iced::Padding::default().bottom(96))
                 .into(),
             Screen::Library => self.library.view(self.appearance).map(Message::Library),
             Screen::Playlists => self.playlists.view(&self.logo).map(Message::Playlists),
@@ -258,7 +268,7 @@ impl App {
                 container(iced::widget::opaque(
                     container(self.queue_view()).width(244)
                 ))
-                .padding(iced::Padding::default().bottom(84))
+                .padding(iced::Padding::default().bottom(96))
                 .align_right(Length::Fill)
                 .align_bottom(Length::Fill)
             ]
@@ -267,7 +277,7 @@ impl App {
             body
         };
         let middle = row![
-            sidebar.map(|sidebar| container(sidebar).padding(iced::Padding::default().bottom(84))),
+            container(sidebar).padding(iced::Padding::default().bottom(96)),
             container(body)
                 .padding(if compact { 12 } else { 18 })
                 .width(Length::Fill)
@@ -286,16 +296,16 @@ impl App {
                 .width(super::SIDEBAR_CONTROL_WIDTH)
                 .height(28)
                 .padding(0)
-                .style(if self.sidebar_visible {
+                .style(if self.sidebar_expanded {
                     soft_button
                 } else {
                     super::material::text_button
                 })
                 .on_press(Message::ToggleSidebar),
-                text(if self.sidebar_visible {
-                    "Hide sidebar"
+                text(if self.sidebar_expanded {
+                    "Collapse sidebar"
                 } else {
-                    "Show sidebar"
+                    "Expand sidebar"
                 })
                 .size(13),
                 tooltip::Position::Bottom,
@@ -310,9 +320,11 @@ impl App {
         let chrome = column![bar, container(middle).padding([0, 9]).height(Length::Fill)]
             .width(Length::Fill)
             .height(Length::Fill);
-        let art = (self.screen == Screen::Library)
-            .then(|| self.library.backdrop())
-            .flatten();
+        let art = match self.screen {
+            Screen::Discover => self.discover.backdrop(),
+            Screen::Library => self.library.backdrop(),
+            _ => None,
+        };
         stack![
             super::background::view(art),
             chrome,
@@ -549,26 +561,51 @@ impl App {
     }
 
     fn dock(&self) -> Element<'_, Message> {
+        let compact = self.window_size.width < 760.;
         let item = self.queue.current();
         let title = self.track_title();
         let artist = self.artist();
         let mut meta = column![
             text(title)
-                .size(14)
-                .height(19)
+                .size(if compact { 12 } else { 13 })
                 .wrapping(text::Wrapping::None)
         ]
-        .spacing(2)
-        .width(Length::Fill);
+        .spacing(4);
         if let Some(artist) = artist {
             meta = meta.push(
                 text(artist)
-                    .height(16)
-                    .size(12)
+                    .size(11)
                     .color(MUTED)
                     .wrapping(text::Wrapping::None),
             );
         }
+        let mut metadata = row![].spacing(9).align_y(Alignment::Center);
+        let cover = self
+            .artwork
+            .details
+            .as_ref()
+            .and_then(|d| d.art.as_ref())
+            .filter(|_| !compact);
+        if let Some(art) = cover {
+            metadata = metadata.push(
+                image(&art.cover)
+                    .width(PLAYER_PILL_HEIGHT - 4.)
+                    .height(PLAYER_PILL_HEIGHT - 4.)
+                    .border_radius(material::RADIUS),
+            );
+        }
+        let metadata = material::button(
+            container(metadata.push(container(meta).width(Length::Fill).clip(true)))
+                .center_y(Length::Fill),
+        )
+        .padding(0)
+        .width(Length::Fill)
+        .height(Length::Fill)
+        .style(material::text_button)
+        .on_press_maybe(
+            (item.is_some() && !self.playlists.busy() && self.screen != Screen::Player)
+                .then_some(Message::ShowPlayer),
+        );
         let position = self.position();
         let duration = self.track_duration(position);
         let elapsed = self.scrub.map(Duration::from_secs_f32).unwrap_or(position);
@@ -587,7 +624,7 @@ impl App {
                 elapsed.as_secs_f32().min(total.as_secs_f32()),
                 Message::Scrub,
             )
-            .height(28)
+            .height(18)
             .step(0.05)
             .on_release(Message::Seek)
             .style(|theme, status| {
@@ -609,11 +646,19 @@ impl App {
             .into()
         } else {
             container(horizontal_rule(2))
-                .center_y(28)
+                .center_y(18)
                 .width(Length::Fill)
                 .into()
         };
-        let line = row![
+
+        let transport = row![
+            control(
+                icon!("shuffle"),
+                "Shuffle upcoming tracks",
+                (self.queue.entries().len() > 1).then_some(Message::Shuffle),
+                false,
+                self.shuffle_order.is_some()
+            ),
             control(
                 icon!("previous"),
                 "Previous",
@@ -627,13 +672,7 @@ impl App {
                 } else {
                     icon!("play")
                 },
-                if playing {
-                    "Pause"
-                } else if matches!(self.transport, Transport::Ended(_)) {
-                    "Replay"
-                } else {
-                    "Play"
-                },
+                if playing { "Pause" } else { "Play" },
                 toggle,
                 true,
                 false
@@ -646,17 +685,6 @@ impl App {
                 false,
                 false
             ),
-            text(clock(elapsed)).size(13),
-            seek,
-            text(duration.map_or_else(|| "--:--".to_owned(), clock)).size(13),
-            Space::new().width(8),
-            control(
-                icon!("shuffle"),
-                "Shuffle upcoming tracks",
-                (self.queue.entries().len() > 1).then_some(Message::Shuffle),
-                false,
-                self.shuffle_order.is_some()
-            ),
             control(
                 icon!("repeat"),
                 "Repeat queue",
@@ -664,60 +692,95 @@ impl App {
                 false,
                 self.repeat
             ),
+        ]
+        .spacing(4)
+        .align_y(Alignment::Center);
+        let timeline = row![
+            text(clock(elapsed)).size(11),
+            seek,
+            text(duration.map_or_else(|| "--:--".to_owned(), clock)).size(11),
+        ]
+        .spacing(8)
+        .align_y(Alignment::Center);
+        let volume = slider(0..=100, self.volume, Message::Volume)
+            .height(24)
+            .width(Length::Fill)
+            .style(|theme, status| slider::default(theme, status).with_circular_handle(4.));
+        let options = row![
+            (!compact).then(|| icon!("audio")),
             tooltip(
-                super::material::button(icon!("queue"))
-                    .padding(6)
-                    .on_press(Message::ToggleQueue)
-                    .style(if self.queue_is_open() {
-                        soft_button
-                    } else {
-                        super::material::text_button
-                    }),
-                text(if self.queue_is_open() {
+                volume,
+                text(format!("Volume {}%", self.volume)).size(12),
+                tooltip::Position::Top
+            )
+            .style(material::tooltip),
+            control(
+                icon!("queue"),
+                if self.queue_is_open() {
                     "Hide queue"
                 } else {
                     "Show queue"
-                })
-                .size(13),
-                tooltip::Position::Top
-            )
-            .style(super::material::tooltip)
+                },
+                Some(Message::ToggleQueue),
+                false,
+                self.queue_is_open()
+            ),
         ]
-        .align_y(Alignment::Center)
-        .spacing(4);
-        let mut dock = column![].spacing(4);
+        .spacing(if compact { 6 } else { 8 })
+        .align_y(Alignment::Center);
+        let playback = column![
+            container(material::panel(
+                self.appearance,
+                transport,
+                [4, 10],
+                Length::Shrink,
+                42,
+            ))
+            .center_x(Length::Fill),
+            material::panel(
+                self.appearance,
+                container(timeline).center_y(Length::Fill),
+                [6, 10],
+                Length::Fill,
+                PLAYER_PILL_HEIGHT,
+            ),
+        ]
+        .spacing(8)
+        .width(Length::Fill);
+        let pills = row![
+            material::panel(
+                self.appearance,
+                metadata,
+                [2, 8],
+                if compact { 106 } else { 220 },
+                PLAYER_PILL_HEIGHT,
+            ),
+            playback,
+            material::panel(
+                self.appearance,
+                container(options).center_y(Length::Fill),
+                [8, 10],
+                if compact { 108 } else { 154 },
+                PLAYER_PILL_HEIGHT,
+            ),
+        ]
+        .spacing(10)
+        .align_y(Alignment::End);
+        let mut dock = column![].spacing(6);
         if let Some(error) = &self.artwork.error {
-            dock = dock.push(text(error).size(13));
+            dock = dock.push(text(error).size(12).color(MUTED));
         }
         if let Transport::Failed(error) = &self.transport {
-            dock = dock.push(text(error).color(MUTED).size(13));
+            dock = dock.push(text(error).size(12).color(MUTED));
         }
         if matches!(self.transport, Transport::Ended(_))
             && self.skipped.contains_key(&self.queue.index())
         {
             dock = dock.push(
                 text("No available tracks. Restore the files or reconnect the drive, then replay.")
-                    .size(13),
+                    .size(12),
             );
         }
-        let mut strip = row![].align_y(Alignment::Center).spacing(8);
-        if self.screen != Screen::Player && item.is_some() {
-            let metadata = super::material::button(container(meta).width(Length::Fill).clip(true))
-                .padding([0, 8])
-                .style(super::material::text_button)
-                .on_press_maybe((!self.playlists.busy()).then_some(Message::ShowPlayer));
-            if self.window_size.width >= 760. {
-                strip = strip.push(metadata.width(190));
-            } else {
-                dock = dock.push(metadata.width(Length::Fill));
-            }
-        }
-        material::panel(
-            self.appearance,
-            dock.push(strip.push(container(line).width(Length::Fill))),
-            [6, 10],
-            Length::Fill,
-            Length::Shrink,
-        )
+        dock.push(pills).into()
     }
 }

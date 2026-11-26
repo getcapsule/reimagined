@@ -1,3 +1,5 @@
+mod music;
+
 use serde::{Deserialize, Serialize};
 use std::{
     collections::{HashMap, VecDeque},
@@ -404,31 +406,6 @@ pub(crate) fn resolve(id: &VideoId, format: Option<&str>) -> Result<Streams, Err
     })
 }
 
-pub(crate) fn discover_song(track: &Track) -> bool {
-    let Some(duration) = track.duration else {
-        return false;
-    };
-    if !(45..=900).contains(&duration.as_secs()) {
-        return false;
-    }
-    let title = track.title.to_lowercase();
-    ![
-        "playlist",
-        "compilation",
-        "full album",
-        "full ep",
-        "greatest hits",
-        "songs that",
-        "hour",
-        "dj set",
-        "megamix",
-    ]
-    .iter()
-    .any(|term| title.contains(term))
-        && !title
-            .split(|c: char| !c.is_alphanumeric())
-            .any(|word| matches!(word, "mix" | "mixes"))
-}
 pub async fn discover(provider: Arc<Youtube>) -> Result<Vec<Track>, Error> {
     let mut artists = [
         "Radiohead",
@@ -457,14 +434,10 @@ pub async fn discover(provider: Arc<Youtube>) -> Result<Vec<Track>, Error> {
         "FKA twigs",
     ];
     fastrand::shuffle(&mut artists);
-    let queries = artists[..3]
-        .iter()
-        .map(|artist| format!("{artist} official audio -playlist -compilation"))
-        .collect::<Vec<_>>();
     let (a, b, c) = tokio::join!(
-        provider.search(&queries[0], 12),
-        provider.search(&queries[1], 12),
-        provider.search(&queries[2], 12)
+        music::search(&provider, artists[0], 8),
+        music::search(&provider, artists[1], 8),
+        music::search(&provider, artists[2], 8)
     );
     let mut songs = Vec::new();
     let mut seen = std::collections::HashSet::new();
@@ -474,9 +447,7 @@ pub async fn discover(provider: Arc<Youtube>) -> Result<Vec<Track>, Error> {
             Ok(tracks) => songs.extend(
                 tracks
                     .into_iter()
-                    .filter(discover_song)
-                    .filter(|t| seen.insert(t.id.as_str().to_owned()))
-                    .take(8),
+                    .filter(|t| seen.insert(t.id().as_str().to_owned())),
             ),
             Err(error) => last_error = Some(error),
         }
@@ -484,13 +455,13 @@ pub async fn discover(provider: Arc<Youtube>) -> Result<Vec<Track>, Error> {
     if songs.is_empty() {
         return Err(last_error.unwrap_or_else(|| {
             Error::Unavailable(
-                "No individual songs found. Refresh to try another selection.".into(),
+                "No songs found on YouTube Music. Refresh to try another selection.".into(),
             )
         }));
     }
     fastrand::shuffle(&mut songs);
     songs.truncate(24);
-    Ok(songs)
+    music::metadata(songs).await
 }
 
 #[cfg(test)]

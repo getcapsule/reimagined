@@ -7,7 +7,13 @@ use iced::{
 use raw_window_handle::RawWindowHandle;
 use windows_sys::Win32::{
     Foundation::{HWND, LPARAM, LRESULT, POINT, RECT, WPARAM},
-    Graphics::{Dwm::*, Gdi::ScreenToClient},
+    Graphics::{
+        Dwm::*,
+        Gdi::{
+            CreateRectRgn, CreateRoundRectRgn, DeleteObject, EqualRgn, GetWindowRgn,
+            ScreenToClient, SetWindowRgn,
+        },
+    },
     UI::{
         HiDpi::GetDpiForWindow,
         Shell::{DefSubclassProc, RemoveWindowSubclass, SetWindowSubclass},
@@ -111,13 +117,65 @@ pub(super) fn install() -> Task<Message> {
                     (&raw const backdrop).cast(),
                     size_of_val(&backdrop) as u32,
                 );
-                if SetWindowSubclass(hwnd, Some(hit_test), 1, 0) == 0 {
+                let corners = DWMWCP_DONOTROUND;
+                DwmSetWindowAttribute(
+                    hwnd,
+                    DWMWA_WINDOW_CORNER_PREFERENCE as u32,
+                    (&raw const corners).cast(),
+                    size_of_val(&corners) as u32,
+                );
+                if SetWindowSubclass(hwnd, Some(hit_test), 1, 0) == 0 || !round_window(hwnd) {
                     return Message::FrameUnavailable;
                 }
             }
             Message::Tick
         })
     })
+}
+
+unsafe fn round_window(hwnd: HWND) -> bool {
+    // Successful SetWindowRgn transfers the region to Windows.
+    unsafe {
+        let current = CreateRectRgn(0, 0, 0, 0);
+        if current.is_null() {
+            return false;
+        }
+        let has_region = GetWindowRgn(hwnd, current) != 0;
+        if IsZoomed(hwnd) != 0 {
+            DeleteObject(current);
+            return !has_region || SetWindowRgn(hwnd, std::ptr::null_mut(), 1) != 0;
+        }
+        let mut rect = RECT::default();
+        if GetWindowRect(hwnd, &mut rect) == 0 {
+            DeleteObject(current);
+            return false;
+        }
+        let diameter = (super::material::RADIUS * 2. * GetDpiForWindow(hwnd).max(96) as f32 / 96.)
+            .round() as i32;
+        let proposed = CreateRoundRectRgn(
+            0,
+            0,
+            rect.right - rect.left + 1,
+            rect.bottom - rect.top + 1,
+            diameter,
+            diameter,
+        );
+        if proposed.is_null() {
+            DeleteObject(current);
+            return false;
+        }
+        let unchanged = has_region && EqualRgn(current, proposed) != 0;
+        DeleteObject(current);
+        if unchanged {
+            DeleteObject(proposed);
+            return true;
+        }
+        if SetWindowRgn(hwnd, proposed, 1) == 0 {
+            DeleteObject(proposed);
+            return false;
+        }
+        true
+    }
 }
 
 unsafe extern "system" fn hit_test(
@@ -130,6 +188,11 @@ unsafe extern "system" fn hit_test(
 ) -> LRESULT {
     // The system supplies the window handle and message parameters on the owning thread.
     unsafe {
+        if matches!(msg, WM_SIZE | WM_DPICHANGED) {
+            let result = DefSubclassProc(hwnd, msg, w, l);
+            let _ = round_window(hwnd);
+            return result;
+        }
         if msg == WM_NCHITTEST {
             let mut rect = RECT::default();
             let mut cursor = POINT {

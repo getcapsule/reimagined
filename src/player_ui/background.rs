@@ -13,46 +13,47 @@ pub(super) struct PageArt {
 }
 impl PageArt {
     fn new(cover: image::Handle) -> Option<Self> {
-        let image::Handle::Rgba {
-            width,
-            height,
-            pixels,
-            ..
-        } = &cover
-        else {
-            return None;
-        };
-        let source = ::image::ImageBuffer::<::image::Rgba<u8>, &[u8]>::from_raw(
-            *width,
-            *height,
-            pixels.as_ref(),
-        )?;
-        let small =
-            ::image::imageops::resize(&source, 64, 64, ::image::imageops::FilterType::Triangle);
-        let mut colors = ::image::imageops::blur(&small, 16.0);
-        for pixel in colors.pixels_mut() {
-            let rgb = [
-                f32::from(pixel[0]),
-                f32::from(pixel[1]),
-                f32::from(pixel[2]),
-            ];
-            let grey = rgb[0] * 0.2126 + rgb[1] * 0.7152 + rgb[2] * 0.0722;
-            let saturated = rgb.map(|c| (grey + (c - grey) * 1.45).clamp(0., 255.));
-            let luminance = saturated[0] * 0.2126 + saturated[1] * 0.7152 + saturated[2] * 0.0722;
-            let gain = (56. / luminance.max(1.)).min(0.5);
-            *pixel = ::image::Rgba([
-                (saturated[0] * gain) as u8,
-                (saturated[1] * gain) as u8,
-                (saturated[2] * gain) as u8,
-                255,
-            ]);
-        }
-        Some(Self {
-            cover,
-            colors: image::Handle::from_rgba(64, 64, colors.into_raw()),
-        })
+        let colors = colors(&cover)?;
+        Some(Self { cover, colors })
     }
 }
+pub(super) fn colors(cover: &image::Handle) -> Option<image::Handle> {
+    let image::Handle::Rgba {
+        width,
+        height,
+        pixels,
+        ..
+    } = cover
+    else {
+        return None;
+    };
+    let source = ::image::ImageBuffer::<::image::Rgba<u8>, &[u8]>::from_raw(
+        *width,
+        *height,
+        pixels.as_ref(),
+    )?;
+    let small = ::image::imageops::resize(&source, 64, 64, ::image::imageops::FilterType::Triangle);
+    let mut colors = ::image::imageops::blur(&small, 16.0);
+    for pixel in colors.pixels_mut() {
+        let rgb = [
+            f32::from(pixel[0]),
+            f32::from(pixel[1]),
+            f32::from(pixel[2]),
+        ];
+        let grey = rgb[0] * 0.2126 + rgb[1] * 0.7152 + rgb[2] * 0.0722;
+        let saturated = rgb.map(|c| (grey + (c - grey) * 1.45).clamp(0., 255.));
+        let luminance = saturated[0] * 0.2126 + saturated[1] * 0.7152 + saturated[2] * 0.0722;
+        let gain = (56. / luminance.max(1.)).min(0.5);
+        *pixel = ::image::Rgba([
+            (saturated[0] * gain) as u8,
+            (saturated[1] * gain) as u8,
+            (saturated[2] * gain) as u8,
+            255,
+        ]);
+    }
+    Some(image::Handle::from_rgba(64, 64, colors.into_raw()))
+}
+
 pub(super) fn album(path: &Path) -> Option<PageArt> {
     PageArt::new(artwork::cover(path, 512)?)
 }

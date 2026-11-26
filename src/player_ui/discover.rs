@@ -1,4 +1,4 @@
-use super::{Message, artwork, dock, material};
+use super::{Message, artwork, background, dock, material};
 use capsule::providers::youtube::{self, Track, VideoId, Youtube};
 use iced::{
     Alignment, Color, ContentFit, Element, Fill, Task,
@@ -71,6 +71,7 @@ pub(super) struct Pane {
     featured_motion: Option<Motion>,
     song_motion: Option<Motion>,
     artwork_error: bool,
+    backdrop: Option<image::Handle>,
 }
 fn animate() -> Task<Message> {
     Task::perform(
@@ -119,10 +120,14 @@ impl Pane {
             &[]
         }
     }
+    pub(super) fn backdrop(&self) -> Option<&image::Handle> {
+        self.backdrop.as_ref()
+    }
     pub(super) fn refresh(&mut self, provider: Arc<Youtube>) -> Task<Message> {
         self.revision += 1;
         let revision = self.revision;
         self.state = State::Loading;
+        self.backdrop = None;
         self.featured_offset = 0.;
         self.song_offset = 0.;
         self.song_page = 0;
@@ -194,6 +199,7 @@ impl Pane {
             })
             .collect::<Vec<_>>();
         self.state = State::Ready(picks);
+        self.backdrop = None;
         Task::batch(tasks)
     }
     pub(super) fn cover(
@@ -206,17 +212,25 @@ impl Pane {
             return;
         }
         if let State::Ready(picks) = &mut self.state
-            && let Some(pick) = Arc::make_mut(picks).iter_mut().find(|p| &p.track.id == id)
+            && let Some(index) = picks.iter().position(|p| &p.track.id == id)
         {
-            pick.cover = match result {
+            let cover = match result {
                 Ok(Some(cover)) => Cover::Ready(cover),
                 _ => {
                     self.artwork_error = true;
                     Cover::Unavailable
                 }
             };
+            if index == 0 {
+                self.backdrop = match &cover {
+                    Cover::Ready(cover) => background::colors(cover),
+                    _ => None,
+                };
+            }
+            Arc::make_mut(picks)[index].cover = cover;
         }
     }
+
     pub(super) fn track(&self, revision: u64, index: usize) -> Option<&Track> {
         if revision != self.revision {
             return None;
@@ -361,7 +375,7 @@ impl Pane {
             ]
             .align_y(Alignment::Center)
         ]
-        .spacing(16);
+        .spacing(12);
         match &self.state {
             State::Failed(error) => {
                 return page
@@ -542,7 +556,7 @@ impl Pane {
                 ]
                 .spacing(6),
             )
-            .center_x(Fill),
+            .align_right(Fill),
         );
         scrollable(
             page.push(Space::new().height(96))
@@ -649,5 +663,22 @@ mod tests {
                 "song {index} is playable"
             );
         }
+    }
+    #[test]
+    fn backdrop_follows_only_the_first_cover_and_discards_previous_refreshes() {
+        let mut pane = fixture();
+        let first = pane.picks()[0].track.id.clone();
+        let second = pane.picks()[1].track.id.clone();
+        let cover = || image::Handle::from_rgba(4, 4, vec![120; 4 * 4 * 4]);
+        pane.cover(3, &second, Ok(Some(cover())));
+        assert!(pane.backdrop().is_none());
+        pane.cover(3, &first, Ok(Some(cover())));
+        let backdrop = pane.backdrop().expect("first cover colors").clone();
+        pane.cover(3, &second, Ok(Some(cover())));
+        assert_eq!(pane.backdrop(), Some(&backdrop));
+        let _ = pane.refresh(Arc::new(Youtube::default()));
+        assert!(pane.backdrop().is_none());
+        pane.cover(3, &first, Ok(Some(cover())));
+        assert!(pane.backdrop().is_none());
     }
 }

@@ -164,35 +164,6 @@ fn playback_uses_music_quality_opus_and_rejects_low_bitrate_fallbacks()
 }
 
 #[test]
-fn discover_excludes_playlists_compilations_and_long_mixes() {
-    let mut track = Track {
-        id: "V_Ydoe4Q-Gg".to_owned().try_into().unwrap(),
-        title: "Weird Fishes (Official Audio)".into(),
-        artist: "Radiohead".into(),
-        thumbnail: None,
-        duration: Some(Duration::from_secs(318)),
-    };
-    assert!(discover_song(&track));
-    for title in [
-        "Indie dream pop playlist",
-        "Summer compilation",
-        "Radiohead Full Album",
-        "Songs that feel like unsent messages",
-        "Late night mix",
-        "Live DJ set",
-    ] {
-        track.title = title.into();
-        assert!(!discover_song(&track), "{title}");
-    }
-    track.title = "Song (Remix)".into();
-    assert!(discover_song(&track));
-    track.duration = Some(Duration::from_secs(3600));
-    assert!(!discover_song(&track));
-    track.duration = None;
-    assert!(!discover_song(&track));
-}
-
-#[test]
 #[ignore = "requires YouTube discovery network"]
 fn live_discover_returns_individual_songs_with_thumbnail_sources()
 -> Result<(), Box<dyn std::error::Error>> {
@@ -202,7 +173,7 @@ fn live_discover_returns_individual_songs_with_thumbnail_sources()
     let songs = runtime.block_on(discover(Arc::new(Youtube::default())))?;
     assert!(!songs.is_empty());
     assert!(songs.len() <= 24);
-    assert!(songs.iter().all(discover_song));
+    assert!(songs.iter().all(|t| !t.artist.trim().is_empty()));
     assert!(songs.iter().all(|t| t.thumbnail.is_some()));
     println!("{} individual songs", songs.len());
     Ok(())

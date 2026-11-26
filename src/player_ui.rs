@@ -163,7 +163,7 @@ struct App {
     #[cfg(windows)]
     maximized: bool,
     window_size: Size,
-    sidebar_visible: bool,
+    sidebar_expanded: bool,
     queue_visible: bool,
     transport: Transport,
     info: Option<TrackInfo>,
@@ -256,7 +256,7 @@ impl App {
             #[cfg(windows)]
             maximized: false,
             window_size: WINDOW_SIZE,
-            sidebar_visible: true,
+            sidebar_expanded: true,
             queue_visible: false,
             transport: Transport::Idle,
             info: None,
@@ -495,7 +495,7 @@ impl App {
                     .and_then(iced::window::is_maximized)
                     .map(Message::Maximized);
             }
-            Message::ToggleSidebar => self.sidebar_visible = !self.sidebar_visible,
+            Message::ToggleSidebar => self.sidebar_expanded = !self.sidebar_expanded,
             Message::ToggleQueue => self.queue_visible = !self.queue_is_open(),
             Message::CloseMenu => {
                 self.menu = None;

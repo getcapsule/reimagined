@@ -518,14 +518,14 @@ fn dragging_the_playback_bar_seeks_the_paused_track() -> anyhow::Result<()> {
         (
             700.,
             mouse::Event::CursorMoved {
-                position: iced::Point::new(700., 708.),
+                position: iced::Point::new(700., 707.),
             },
         ),
         (700., mouse::Event::ButtonReleased(mouse::Button::Left)),
     ] {
         let _ = ui.update(
             &[iced::Event::Mouse(event)],
-            mouse::Cursor::Available(iced::Point::new(x, 708.)),
+            mouse::Cursor::Available(iced::Point::new(x, 707.)),
             &mut renderer,
             &mut clipboard::Null,
             &mut messages,
@@ -708,7 +708,7 @@ fn sidebar_and_empty_queue_toggle_through_visible_buttons() -> anyhow::Result<()
         drop(ui);
         assert_eq!(messages.len(), 1, "toggle emits one action");
         let _ = app.update(messages.pop().unwrap());
-        assert_eq!(app.sidebar_visible, sidebar);
+        assert_eq!(app.sidebar_expanded, sidebar);
         assert_eq!(app.queue_is_open(), queue);
     }
     Ok(())
@@ -805,5 +805,88 @@ fn failed_youtube_open_reports_the_stream_error() -> anyhow::Result<()> {
         matches!(&app.transport, Transport::Failed(error) if error.contains("HTTP 403")),
         "An unavailable YouTube stream must report its actual error"
     );
+    Ok(())
+}
+
+#[test]
+fn collapsed_sidebar_keeps_navigation_actions_accessible() -> anyhow::Result<()> {
+    use iced_runtime::{
+        UserInterface,
+        core::{clipboard, mouse, renderer::Headless},
+    };
+    let mut app = App::new(Theme::Dark, Player::new()?, std::iter::empty());
+    app.sidebar_expanded = false;
+    app.screen = Screen::Settings;
+    let mut renderer = iced::futures::executor::block_on(iced::Renderer::new(
+        iced::Font::DEFAULT,
+        iced::Pixels(13.),
+        Some("tiny-skia"),
+    ))
+    .expect("test renderer");
+    for (y, screen) in [
+        (135., Screen::Library),
+        (580., Screen::Audio),
+        (620., Screen::Settings),
+        (95., Screen::Discover),
+    ] {
+        let mut ui =
+            UserInterface::build(app.view(), WINDOW_SIZE, Default::default(), &mut renderer);
+        let mut messages = Vec::new();
+        let _ = ui.update(
+            &[
+                iced::Event::Mouse(mouse::Event::ButtonPressed(mouse::Button::Left)),
+                iced::Event::Mouse(mouse::Event::ButtonReleased(mouse::Button::Left)),
+            ],
+            mouse::Cursor::Available(iced::Point::new(35., y)),
+            &mut renderer,
+            &mut clipboard::Null,
+            &mut messages,
+        );
+        drop(ui);
+        assert_eq!(messages.len(), 1, "collapsed icon emits its action");
+        let _ = app.update(messages.pop().unwrap());
+        assert!(app.screen == screen);
+        assert!(!app.sidebar_expanded);
+    }
+    Ok(())
+}
+
+#[test]
+fn volume_pill_works_at_normal_and_minimum_widths() -> anyhow::Result<()> {
+    use iced_runtime::{
+        UserInterface,
+        core::{clipboard, mouse, renderer::Headless},
+    };
+    let mut app = App::new(Theme::Dark, Player::new()?, std::iter::empty());
+    let mut renderer = iced::futures::executor::block_on(iced::Renderer::new(
+        iced::Font::DEFAULT,
+        iced::Pixels(13.),
+        Some("tiny-skia"),
+    ))
+    .expect("test renderer");
+    for (size, point) in [
+        (WINDOW_SIZE, iced::Point::new(970., 707.)),
+        (iced::Size::new(570., 700.), iced::Point::new(480., 667.)),
+    ] {
+        app.window_size = size;
+        let mut ui = UserInterface::build(app.view(), size, Default::default(), &mut renderer);
+        let mut messages = Vec::new();
+        let _ = ui.update(
+            &[
+                iced::Event::Mouse(mouse::Event::ButtonPressed(mouse::Button::Left)),
+                iced::Event::Mouse(mouse::Event::ButtonReleased(mouse::Button::Left)),
+            ],
+            mouse::Cursor::Available(point),
+            &mut renderer,
+            &mut clipboard::Null,
+            &mut messages,
+        );
+        assert!(
+            messages
+                .iter()
+                .any(|m| matches!(m, Message::Volume(value) if *value < 65)),
+            "volume slider remains usable"
+        );
+    }
     Ok(())
 }
