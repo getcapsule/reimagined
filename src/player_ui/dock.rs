@@ -288,11 +288,7 @@ impl App {
         let chrome = column![bar, container(middle).padding([0, 9]).height(Length::Fill)]
             .width(Length::Fill)
             .height(Length::Fill);
-        let art = match self.screen {
-            Screen::Discover => self.discover.backdrop(),
-            Screen::Library => self.library.backdrop(),
-            _ => None,
-        };
+        let art = self.backdrop();
         stack![
             super::background::view(art),
             chrome,

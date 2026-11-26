@@ -230,6 +230,13 @@ enum Message {
 }
 
 impl App {
+    fn backdrop(&self) -> Option<&iced::widget::image::Handle> {
+        if matches!(self.screen, Screen::Library) {
+            self.library.backdrop().or_else(|| self.discover.backdrop())
+        } else {
+            self.discover.backdrop()
+        }
+    }
     fn new(theme: Theme, player: Player, paths: impl Iterator<Item = PathBuf>) -> Self {
         let mut app = App {
             theme,

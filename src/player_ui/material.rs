@@ -240,12 +240,11 @@ fn surface<'a, M: 'a>(
                 } else {
                     [0.075, 0.082, 0.10]
                 };
-                Color::from_rgba(
-                    rgb[0],
-                    rgb[1],
-                    rgb[2],
-                    0.56 + f32::from(appearance.percent()) / 100. * 0.40,
-                )
+                Color::from_rgba(rgb[0], rgb[1], rgb[2], {
+                    let opacity = f32::from(appearance.percent()) / 100.;
+                    let frost = if elevation.raised() { 0.08 } else { 0.14 };
+                    frost + (1. - frost) * opacity.powf(1.6)
+                })
             } else if elevation.raised() {
                 Color::from_rgb8(34, 37, 44)
             } else {
@@ -260,8 +259,8 @@ fn surface<'a, M: 'a>(
         iced_glass::widget::container(content)
             .glass_style(move |_| iced_glass::Style {
                 blur_radius: if elevation.raised() { 22. } else { 28. },
-                saturation: 1.05,
-                lightness: 0.04,
+                saturation: 1.12,
+                lightness: 0.02,
                 edge_radius: 8.,
                 edge_height: 3.,
                 refractive_index: 1.12,

@@ -681,4 +681,36 @@ mod tests {
         pane.cover(3, &first, Ok(Some(cover())));
         assert!(pane.backdrop().is_none());
     }
+    #[test]
+    fn cover_tint_follows_navigation_across_the_app() -> anyhow::Result<()> {
+        use super::super::{App, Screen};
+        let mut app = App::new(
+            iced::Theme::Dark,
+            capsule::audio::Player::new()?,
+            std::iter::empty(),
+        );
+        app.discover = fixture();
+        let id = app.discover.picks()[0].track.id.clone();
+        app.discover.cover(
+            3,
+            &id,
+            Ok(Some(image::Handle::from_rgba(
+                1,
+                1,
+                vec![40, 120, 180, 255],
+            ))),
+        );
+        let tint = app.backdrop().expect("cover tint").clone();
+        for screen in [
+            Screen::Discover,
+            Screen::Library,
+            Screen::Playlists,
+            Screen::Audio,
+            Screen::Settings,
+        ] {
+            app.screen = screen;
+            assert_eq!(app.backdrop(), Some(&tint));
+        }
+        Ok(())
+    }
 }
