@@ -14,55 +14,11 @@ use std::time::Duration;
 
 const PLAYER_PILL_HEIGHT: f32 = 48.;
 
-const MUTED: Color = Color {
-    r: 0.76,
-    g: 0.76,
-    b: 0.77,
-    a: 1.0,
-};
-const SECONDARY: Color = Color {
-    r: 0.9,
-    g: 0.9,
-    b: 0.91,
-    a: 1.0,
-};
+const MUTED: Color = material::SECONDARY;
+const SECONDARY: Color = material::TEXT;
 
-pub(super) fn soft_button(_: &iced::Theme, status: button::Status) -> button::Style {
-    button::Style {
-        background: Some(
-            Color::from_rgba(
-                0.92,
-                0.92,
-                0.92,
-                if matches!(status, button::Status::Hovered | button::Status::Pressed) {
-                    0.20
-                } else {
-                    0.085
-                },
-            )
-            .into(),
-        ),
-        text_color: if status == button::Status::Hovered {
-            Color::WHITE
-        } else {
-            SECONDARY
-        },
-        border: Border {
-            radius: material::RADIUS.into(),
-            width: 1.0,
-            color: Color::from_rgba(
-                1.,
-                1.,
-                1.,
-                if status == button::Status::Hovered {
-                    0.28
-                } else {
-                    0.12
-                },
-            ),
-        },
-        ..Default::default()
-    }
+pub(super) fn soft_button(theme: &iced::Theme, status: button::Status) -> button::Style {
+    material::raised_button(theme, status)
 }
 
 macro_rules! icon {
@@ -98,9 +54,12 @@ pub(super) fn control<'a, M: Clone + 'a>(
     .style(move |_, state| {
         let hover = matches!(state, button::Status::Hovered | button::Status::Pressed);
         let fill = if primary {
-            Some(Color::from_rgba(1., 1., 1., if hover { 0.21 } else { 0.13 }).into())
+            Some(material::glaze(
+                if hover { 0.27 } else { 0.21 },
+                if hover { 0.15 } else { 0.10 },
+            ))
         } else if hover || active {
-            Some(Color::from_rgba(1., 1., 1., if hover { 0.16 } else { 0.11 }).into())
+            Some(material::glaze(if hover { 0.16 } else { 0.12 }, 0.05))
         } else {
             None
         };
@@ -116,7 +75,16 @@ pub(super) fn control<'a, M: Clone + 'a>(
             border: Border {
                 radius: 22.into(),
                 width: if primary { 1.0 } else { 0.0 },
-                color: Color::from_rgba(1., 1., 1., if hover { 0.34 } else { 0.15 }),
+                color: Color::from_rgba(1., 1., 1., if hover { 0.30 } else { 0.21 }),
+            },
+            shadow: if primary || active {
+                iced::Shadow {
+                    color: Color::from_rgba(0., 0., 0., 0.28),
+                    offset: iced::Vector::new(0., 2.),
+                    blur_radius: 8.,
+                }
+            } else {
+                iced::Shadow::default()
             },
             ..Default::default()
         }
@@ -557,7 +525,7 @@ impl App {
             ]
         ]
         .spacing(6);
-        material::panel(self.appearance, queue, 12, Length::Fill, Length::Shrink)
+        material::floating(self.appearance, queue, 12, Length::Fill, Length::Shrink)
     }
 
     fn dock(&self) -> Element<'_, Message> {
@@ -729,7 +697,7 @@ impl App {
         .spacing(if compact { 6 } else { 8 })
         .align_y(Alignment::Center);
         let playback = column![
-            container(material::panel(
+            container(material::floating(
                 self.appearance,
                 transport,
                 [4, 10],
@@ -737,7 +705,7 @@ impl App {
                 42,
             ))
             .center_x(Length::Fill),
-            material::panel(
+            material::floating(
                 self.appearance,
                 container(timeline).center_y(Length::Fill),
                 [6, 10],
@@ -748,7 +716,7 @@ impl App {
         .spacing(8)
         .width(Length::Fill);
         let pills = row![
-            material::panel(
+            material::floating(
                 self.appearance,
                 metadata,
                 [2, 8],
@@ -756,7 +724,7 @@ impl App {
                 PLAYER_PILL_HEIGHT,
             ),
             playback,
-            material::panel(
+            material::floating(
                 self.appearance,
                 container(options).center_y(Length::Fill),
                 [8, 10],

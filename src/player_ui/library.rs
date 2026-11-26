@@ -373,7 +373,7 @@ impl Pane {
             }
             if root.is_some() {
                 if self.artist.is_none() {
-                    content = content.push(material::panel(
+                    content = content.push(material::floating(
                         appearance,
                         text_input("Search albums, artists, or tracks", &self.query)
                             .on_input(Msg::Query)

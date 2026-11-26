@@ -21,7 +21,7 @@ pub(super) fn run(player: Player, paths: impl Iterator<Item = PathBuf> + 'static
         String::from("Capsule"),
         iced::theme::Palette {
             background: background::BASE,
-            text: Color::from_rgb8(244, 244, 246),
+            text: material::TEXT,
             primary: Color::from_rgb8(213, 214, 218),
             success: Color::from_rgb8(124, 205, 165),
             warning: Color::from_rgb8(224, 181, 113),
@@ -808,7 +808,7 @@ impl App {
                     .on_press(action.clone()),
             );
         }
-        let menu = material::panel(self.appearance, items, 4, width, iced::Shrink);
+        let menu = material::floating(self.appearance, items, 4, width, iced::Shrink);
         layers
             .push(opaque(
                 mouse_area(Space::new().width(iced::Fill).height(iced::Fill))

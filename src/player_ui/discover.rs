@@ -15,7 +15,7 @@ const FEATURED: usize = 6;
 const PAGE_SIZE: usize = 9;
 const FEATURED_SCROLL: &str = "discover-featured-songs";
 const SONG_SCROLL: &str = "discover-songs";
-const MUTED: Color = Color::from_rgb8(174, 177, 184);
+const MUTED: Color = material::SECONDARY;
 
 #[derive(Debug, Clone, Default)]
 enum Cover {
@@ -543,14 +543,14 @@ impl Pane {
                         .style(if self.song_page == 0 {
                             dock::soft_button
                         } else {
-                            material::text_button
+                            material::secondary_button
                         })
                         .on_press(page_control(0)),
                     material::button("2")
                         .style(if self.song_page == 1 {
                             dock::soft_button
                         } else {
-                            material::text_button
+                            material::secondary_button
                         })
                         .on_press(page_control(1)),
                 ]

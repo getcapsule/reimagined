@@ -319,7 +319,7 @@ impl Pane {
         page = page.push(
             container(scrollable(rows).id(LIST)).max_height((height * 0.55).clamp(95., 330.)),
         );
-        container(material::panel(appearance, page, 12, Fill, iced::Shrink))
+        container(material::floating(appearance, page, 12, Fill, iced::Shrink))
             .width(Fill)
             .max_width(520)
             .into()
