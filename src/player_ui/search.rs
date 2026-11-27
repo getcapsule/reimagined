@@ -235,15 +235,13 @@ impl Pane {
         let commands: Vec<_> = self.commands().collect();
         if let Some(error) = &self.error {
             page = page.push(text(error));
+        } else if !self.query.trim().is_empty()
+            && self.hits.is_empty()
+            && self.lookup_state != Lookup::Idle
+        {
+            rows = rows.push(super::skeleton::rows(5, false));
         } else if !self.query.trim().is_empty() && self.hits.is_empty() && commands.is_empty() {
-            page = page.push(
-                text(if self.lookup_state != Lookup::Idle {
-                    "Searching…"
-                } else {
-                    "No matching tracks."
-                })
-                .size(13),
-            );
+            page = page.push(text("No matching tracks.").size(13));
         } else if !self.hits.is_empty() {
             rows = rows.push(
                 text("Tracks")

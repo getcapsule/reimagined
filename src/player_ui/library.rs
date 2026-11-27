@@ -314,7 +314,7 @@ impl Pane {
                 content =
                     content.push(scrollable(list.push(iced::widget::Space::new().height(96))));
             } else {
-                content = content.push(text("Loading tracks…"));
+                content = content.push(super::skeleton::rows(6, false));
             }
         } else {
             if let Some(artist) = &self.artist {
@@ -425,6 +425,12 @@ impl Pane {
                         content.push(scrollable(list.push(iced::widget::Space::new().height(96))));
                 }
             }
+        }
+        if (self.opening || self.searching || self.scanning)
+            && self.results.is_none()
+            && self.selected.is_none()
+        {
+            content = content.push(super::skeleton::rows(6, false));
         }
         container(content)
             .width(Length::Fill)

@@ -42,6 +42,9 @@ pub(super) struct Artwork {
     pub error: Option<String>,
 }
 impl Artwork {
+    pub(super) fn loading(&self) -> bool {
+        self.pending
+    }
     pub(super) fn sync(&mut self, request: Option<Request<'_>>) -> Task<Message> {
         let key = match &request {
             Some(Request::File(Some(path))) => Some(Key::File(path.to_path_buf())),

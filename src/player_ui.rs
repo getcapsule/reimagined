@@ -10,6 +10,7 @@ mod library;
 mod material;
 mod playlists;
 mod search;
+mod skeleton;
 use capsule::library::Track;
 use capsule::library::playlists::SavedTrack;
 use capsule::queue::Queue;

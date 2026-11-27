@@ -544,7 +544,8 @@ impl App {
                 level
             ]
             .spacing(10)
-            .align_x(Alignment::Center),
+            .align_x(Alignment::Center)
+            .width(Length::Fill),
             [12, 10],
             56,
             184,
@@ -589,6 +590,12 @@ impl App {
                     .height(PLAYER_PILL_HEIGHT - 4.)
                     .border_radius(material::RADIUS),
             );
+        }
+        if cover.is_none() && !compact && self.artwork.loading() {
+            metadata = metadata.push(super::skeleton::block(
+                PLAYER_PILL_HEIGHT - 4.,
+                PLAYER_PILL_HEIGHT - 4.,
+            ));
         }
         let metadata = material::button(
             container(metadata.push(container(meta).width(Length::Fill).clip(true)))

@@ -183,7 +183,10 @@ impl Pane {
                         Ok(cover) => {
                             self.covers.insert(key, cover);
                         }
-                        Err(error) => self.error = error,
+                        Err(error) => {
+                            self.covers.insert(key, None);
+                            self.error = error;
+                        }
                     }
                 }
             }
@@ -259,27 +262,28 @@ impl Pane {
                 if !artist.is_empty() {
                     label = label.push(text(artist).size(13));
                 }
-                let cover = match &entry.track {
-                    SavedTrack::File(track) => self
-                        .covers
-                        .get(&super::artwork::Key::File(track.path.clone()))
-                        .and_then(Option::as_ref),
-                    SavedTrack::YouTube(track) => self
-                        .covers
-                        .get(&super::artwork::Key::YouTube(track.id.clone()))
-                        .and_then(Option::as_ref),
-                    _ => None,
-                }
-                .unwrap_or(fallback);
-                let row = row![
-                    iced::widget::image(cover)
-                        .height(36)
-                        .width(36)
-                        .border_radius(super::material::RADIUS),
-                    label
-                ]
-                .align_y(Alignment::Center)
-                .spacing(10);
+                let key = match &entry.track {
+                    SavedTrack::File(track) => Some(super::artwork::Key::File(track.path.clone())),
+                    SavedTrack::YouTube(track) => {
+                        Some(super::artwork::Key::YouTube(track.id.clone()))
+                    }
+                    SavedTrack::StereoCheck => None,
+                };
+                let slot = key.as_ref().map(|key| self.covers.get(key));
+                let cover: Element<'_, Msg> = match slot {
+                    Some(None) => super::skeleton::block(36., 36.),
+                    loaded => iced::widget::image(
+                        loaded
+                            .flatten()
+                            .and_then(Option::as_ref)
+                            .unwrap_or(fallback),
+                    )
+                    .height(36)
+                    .width(36)
+                    .border_radius(super::material::RADIUS)
+                    .into(),
+                };
+                let row = row![cover, label].align_y(Alignment::Center).spacing(10);
                 rows = if ready {
                     rows.push(super::context::row(
                         iced::widget::mouse_area(row).on_double_click(Msg::Play(i)),
@@ -291,7 +295,9 @@ impl Pane {
             }
             col = col.push(scrollable(rows.push(iced::widget::Space::new().height(96))));
         } else if self.busy {
-            col = col.push(text("Loading playlists…"));
+            col = col
+                .push(text("Playlists").size(23).font(super::material::HEADING))
+                .push(super::skeleton::rows(6, false));
         } else if self.db.is_none() {
             col = col.push(super::material::button("Retry").on_press(Msg::Retry));
         } else {

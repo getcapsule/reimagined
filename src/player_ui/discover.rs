@@ -89,6 +89,9 @@ fn card_width(width: f32) -> f32 {
     ((width - 24.) / 3.).clamp(174., 246.)
 }
 fn art(pick: &Pick, width: f32, height: f32) -> Element<'_, Message> {
+    if matches!(pick.cover, Cover::Loading) {
+        return super::skeleton::block(width, height);
+    }
     if let Cover::Ready(cover) = &pick.cover {
         return image(cover)
             .width(width)
@@ -97,11 +100,7 @@ fn art(pick: &Pick, width: f32, height: f32) -> Element<'_, Message> {
             .border_radius(material::RADIUS)
             .into();
     }
-    let label = if matches!(pick.cover, Cover::Loading) {
-        "Loading cover"
-    } else {
-        "Cover unavailable"
-    };
+    let label = "Cover unavailable";
     container(text(label).size(10).color(MUTED))
         .center_x(width)
         .center_y(height)
@@ -384,9 +383,46 @@ impl Pane {
                     .into();
             }
             State::Idle | State::Loading => {
-                return page
-                    .push(text("Finding songs on YouTube.").size(13).color(MUTED))
-                    .into();
+                let side = card_width(width);
+                let cards = (0..FEATURED).fold(row![].spacing(12), |cards, _| {
+                    cards.push(
+                        column![
+                            super::skeleton::block(side, side * 0.75),
+                            super::skeleton::block(side * 0.75, 16.),
+                            super::skeleton::block(side * 0.45, 12.),
+                        ]
+                        .spacing(10)
+                        .width(side),
+                    )
+                });
+                let mut grid = column![].spacing(8);
+                for _ in 0..3 {
+                    grid = grid.push((0..3).fold(row![].spacing(12), |line, _| {
+                        line.push(
+                            container(super::skeleton::song(if width < 620. { 32. } else { 44. }))
+                                .padding(8)
+                                .width((width - 24.) / 3.),
+                        )
+                    }));
+                }
+                return scrollable(
+                    page.push(
+                        text("For your next listen")
+                            .size(18)
+                            .font(material::HEADING),
+                    )
+                    .push(scrollable(cards).width(width).direction(
+                        scrollable::Direction::Horizontal(scrollable::Scrollbar::hidden()),
+                    ))
+                    .push(text("More to explore").size(18).font(material::HEADING))
+                    .push(grid)
+                    .push(Space::new().height(96))
+                    .padding(iced::Padding::default().left(5).right(18)),
+                )
+                .direction(scrollable::Direction::Vertical(
+                    scrollable::Scrollbar::hidden(),
+                ))
+                .into();
             }
             _ => {}
         }
@@ -712,5 +748,52 @@ mod tests {
             assert_eq!(app.backdrop(), Some(&tint));
         }
         Ok(())
+    }
+    #[test]
+    fn only_loaded_discover_songs_can_be_activated() {
+        use iced_runtime::{
+            UserInterface,
+            core::{clipboard, mouse, renderer::Headless},
+        };
+        let mut renderer = iced::futures::executor::block_on(iced::Renderer::new(
+            iced::Font::DEFAULT,
+            iced::Pixels(13.),
+            Some("tiny-skia"),
+        ))
+        .expect("test renderer");
+        for (state, playable) in [
+            (State::Loading, false),
+            (fixture().state, true),
+            (State::Failed(String::from("Offline")), false),
+        ] {
+            let pane = Pane {
+                state,
+                revision: 3,
+                ..Default::default()
+            };
+            let mut ui = UserInterface::build(
+                pane.view(860.),
+                iced::Size::new(860., 700.),
+                Default::default(),
+                &mut renderer,
+            );
+            let mut messages = Vec::new();
+            let _ = ui.update(
+                &[
+                    iced::Event::Mouse(mouse::Event::ButtonPressed(mouse::Button::Left)),
+                    iced::Event::Mouse(mouse::Event::ButtonReleased(mouse::Button::Left)),
+                ],
+                mouse::Cursor::Available(iced::Point::new(100., 150.)),
+                &mut renderer,
+                &mut clipboard::Null,
+                &mut messages,
+            );
+            assert_eq!(
+                messages
+                    .iter()
+                    .any(|message| matches!(message, Message::DiscoverPlay { .. })),
+                playable
+            );
+        }
     }
 }
