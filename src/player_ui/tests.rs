@@ -16,7 +16,12 @@ fn wait_for(app: &mut App, ready: impl Fn(&App) -> bool) {
 #[test]
 #[ignore = "requires an audio output device"]
 fn queue_transport_on_device() -> Result<(), AudioError> {
-    let mut app = App::new(Theme::Dark, Player::new()?, std::iter::empty());
+    let mut app = App::new(
+        Theme::Dark,
+        Player::new()?,
+        std::iter::empty(),
+        vec![capsule::audio::OutputDevice::System],
+    );
     let path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("assets/stereo-check.wav");
     let _ = app.update(Message::Volume(0));
     let _ = app.update(Message::Picked(vec![path.clone(), path]));
@@ -86,13 +91,23 @@ fn reopened_library_plays_album_without_picking_files() -> anyhow::Result<()> {
         )?;
     }
     let db = Library::open(&data)?;
-    let mut first = App::new(Theme::Dark, Player::new()?, std::iter::empty());
+    let mut first = App::new(
+        Theme::Dark,
+        Player::new()?,
+        std::iter::empty(),
+        vec![capsule::audio::OutputDevice::System],
+    );
     let task = first.update(Message::Library(library::Msg::Opened(Ok(db))));
     runtime.block_on(drive(&mut first, task));
     let task = first.update(Message::Library(library::Msg::Folder(Some(root))));
     runtime.block_on(drive(&mut first, task));
     drop(first);
-    let mut app = App::new(Theme::Dark, Player::new()?, std::iter::empty());
+    let mut app = App::new(
+        Theme::Dark,
+        Player::new()?,
+        std::iter::empty(),
+        vec![capsule::audio::OutputDevice::System],
+    );
     let db = Library::open(&data)?;
     let task = app.update(Message::Library(library::Msg::Opened(Ok(db))));
     runtime.block_on(drive(&mut app, task));
@@ -146,7 +161,12 @@ fn global_search_plays_latest_query_and_restores_previous_screen() -> anyhow::Re
     }
     let db = Library::open(temp.path())?;
     db.scan(Some(&album))?;
-    let mut app = App::new(Theme::Dark, Player::new()?, std::iter::empty());
+    let mut app = App::new(
+        Theme::Dark,
+        Player::new()?,
+        std::iter::empty(),
+        vec![capsule::audio::OutputDevice::System],
+    );
     let task = app.update(Message::Library(library::Msg::Opened(Ok(db))));
     runtime.block_on(drive(&mut app, task));
     let _ = app.update(Message::Volume(0));
@@ -207,7 +227,12 @@ fn palette_backdrop_dismisses_without_activating_sidebar() -> anyhow::Result<()>
         UserInterface,
         core::{clipboard, mouse, renderer::Headless},
     };
-    let mut app = App::new(Theme::Dark, Player::new()?, std::iter::empty());
+    let mut app = App::new(
+        Theme::Dark,
+        Player::new()?,
+        std::iter::empty(),
+        vec![capsule::audio::OutputDevice::System],
+    );
     let _ = app.update(Message::ShowSettings);
     let _ = app.update(Message::Search(search::Msg::Open));
     let mut renderer = iced::futures::executor::block_on(iced::Renderer::new(
@@ -262,7 +287,12 @@ fn saved_playlist_reopens_and_plays_in_edited_order() -> anyhow::Result<()> {
             include_bytes!("../../assets/stereo-check.wav"),
         )?;
     }
-    let mut app = App::new(Theme::Dark, Player::new()?, std::iter::empty());
+    let mut app = App::new(
+        Theme::Dark,
+        Player::new()?,
+        std::iter::empty(),
+        vec![capsule::audio::OutputDevice::System],
+    );
     send(&mut app, Message::Volume(0));
     send(
         &mut app,
@@ -309,7 +339,12 @@ fn saved_playlist_reopens_and_plays_in_edited_order() -> anyhow::Result<()> {
     assert!(app.active().is_some());
     drop(app);
 
-    let mut reopened = App::new(Theme::Dark, Player::new()?, std::iter::empty());
+    let mut reopened = App::new(
+        Theme::Dark,
+        Player::new()?,
+        std::iter::empty(),
+        vec![capsule::audio::OutputDevice::System],
+    );
     send(&mut reopened, Message::Volume(0));
     let db = Store::open(&data)?;
     let lists = db.list()?;
@@ -364,7 +399,12 @@ fn moved_playlist_track_is_skipped_and_restored_on_replay() -> anyhow::Result<()
     let playlist = store.create("Mix", &tracks)?.playlist;
     std::fs::rename(&middle, &moved)?;
     let runtime = tokio::runtime::Builder::new_current_thread().build()?;
-    let mut app = App::new(Theme::Dark, Player::new()?, std::iter::empty());
+    let mut app = App::new(
+        Theme::Dark,
+        Player::new()?,
+        std::iter::empty(),
+        vec![capsule::audio::OutputDevice::System],
+    );
     let _ = app.update(Message::Volume(0));
     let _ = app.update(Message::Playlists(playlists::Msg::Listed(Ok((
         store.clone(),
@@ -398,7 +438,12 @@ fn moved_playlist_track_is_skipped_and_restored_on_replay() -> anyhow::Result<()
 fn unavailable_ends_of_queue_and_replay() -> anyhow::Result<()> {
     let temp = tempfile::tempdir()?;
     let missing = temp.path().join("Offline.wav");
-    let mut app = App::new(Theme::Dark, Player::new()?, std::iter::empty());
+    let mut app = App::new(
+        Theme::Dark,
+        Player::new()?,
+        std::iter::empty(),
+        vec![capsule::audio::OutputDevice::System],
+    );
     let _ = app.update(Message::Volume(0));
     let file = || QueueItem::Direct(Source::File(missing.clone()));
     app.load([
@@ -428,7 +473,12 @@ fn unavailable_ends_of_queue_and_replay() -> anyhow::Result<()> {
 #[test]
 #[ignore = "requires an audio output device"]
 fn dock_shuffle_restores_order_and_repeat_loops() -> anyhow::Result<()> {
-    let mut app = App::new(Theme::Dark, Player::new()?, std::iter::empty());
+    let mut app = App::new(
+        Theme::Dark,
+        Player::new()?,
+        std::iter::empty(),
+        vec![capsule::audio::OutputDevice::System],
+    );
     let _ = app.update(Message::Volume(0));
     app.queue = ["a", "b", "c", "d"]
         .map(|s| QueueItem::Direct(Source::File(s.into())))
@@ -460,7 +510,12 @@ fn dock_shuffle_restores_order_and_repeat_loops() -> anyhow::Result<()> {
 
 #[test]
 fn listening_view_and_duration_follow_available_track_data() -> anyhow::Result<()> {
-    let mut app = App::new(Theme::Dark, Player::new()?, std::iter::empty());
+    let mut app = App::new(
+        Theme::Dark,
+        Player::new()?,
+        std::iter::empty(),
+        vec![capsule::audio::OutputDevice::System],
+    );
     app.queue = [QueueItem::Direct(Source::StereoCheck)]
         .into_iter()
         .collect();
@@ -498,7 +553,12 @@ fn dragging_the_playback_bar_seeks_the_paused_track() -> anyhow::Result<()> {
         UserInterface,
         core::{clipboard, mouse, renderer::Headless},
     };
-    let mut app = App::new(Theme::Dark, Player::new()?, std::iter::empty());
+    let mut app = App::new(
+        Theme::Dark,
+        Player::new()?,
+        std::iter::empty(),
+        vec![capsule::audio::OutputDevice::System],
+    );
     let _ = app.update(Message::Volume(0));
     app.load([QueueItem::Direct(Source::StereoCheck)]);
     wait_for(&mut app, |a| matches!(a.transport, Transport::Playing(_)));
@@ -550,7 +610,12 @@ fn opacity_drag_continues_across_the_opaque_endpoint() -> anyhow::Result<()> {
         UserInterface,
         core::{clipboard, mouse, renderer::Headless},
     };
-    let mut app = App::new(Theme::Dark, Player::new()?, std::iter::empty());
+    let mut app = App::new(
+        Theme::Dark,
+        Player::new()?,
+        std::iter::empty(),
+        vec![capsule::audio::OutputDevice::System],
+    );
     let _ = app.update(Message::ShowSettings);
     app.appearance = material::Appearance::DARK;
     let mut renderer = iced::futures::executor::block_on(iced::Renderer::new(
@@ -615,7 +680,12 @@ fn context_menu_enqueues_without_restarting_playback() -> anyhow::Result<()> {
         UserInterface,
         core::{clipboard, mouse, renderer::Headless},
     };
-    let mut app = App::new(Theme::Dark, Player::new()?, std::iter::empty());
+    let mut app = App::new(
+        Theme::Dark,
+        Player::new()?,
+        std::iter::empty(),
+        vec![capsule::audio::OutputDevice::System],
+    );
     app.volume = 0;
     app.load([QueueItem::Direct(Source::StereoCheck)]);
     wait_for(&mut app, |a| matches!(a.transport, Transport::Playing(_)));
@@ -678,7 +748,12 @@ fn sidebar_and_empty_queue_toggle_through_visible_buttons() -> anyhow::Result<()
         UserInterface,
         core::{clipboard, mouse, renderer::Headless},
     };
-    let mut app = App::new(Theme::Dark, Player::new()?, std::iter::empty());
+    let mut app = App::new(
+        Theme::Dark,
+        Player::new()?,
+        std::iter::empty(),
+        vec![capsule::audio::OutputDevice::System],
+    );
     app.appearance = material::Appearance::default();
     let mut renderer = iced::futures::executor::block_on(iced::Renderer::new(
         iced::Font::DEFAULT,
@@ -720,7 +795,12 @@ fn youtube_search_enters_queue_and_seeks() -> anyhow::Result<()> {
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()?;
-    let mut app = App::new(Theme::Dark, Player::new()?, std::iter::empty());
+    let mut app = App::new(
+        Theme::Dark,
+        Player::new()?,
+        std::iter::empty(),
+        vec![capsule::audio::OutputDevice::System],
+    );
     app.volume = 0;
     let _ = app.update(Message::Search(search::Msg::Open));
     let task = app.update(Message::Search(search::Msg::Query(
@@ -767,7 +847,12 @@ fn failed_youtube_open_reports_the_stream_error() -> anyhow::Result<()> {
             Err(std::io::Error::other("Audio server returned HTTP 403").into())
         }
     }
-    let mut app = App::new(Theme::Dark, Player::new()?, std::iter::empty());
+    let mut app = App::new(
+        Theme::Dark,
+        Player::new()?,
+        std::iter::empty(),
+        vec![capsule::audio::OutputDevice::System],
+    );
     app.queue = [QueueItem::Direct(Source::YouTube(
         capsule::providers::youtube::Track {
             id: "Ve-rxwKuqtI"
@@ -814,7 +899,12 @@ fn collapsed_sidebar_keeps_navigation_actions_accessible() -> anyhow::Result<()>
         UserInterface,
         core::{clipboard, mouse, renderer::Headless},
     };
-    let mut app = App::new(Theme::Dark, Player::new()?, std::iter::empty());
+    let mut app = App::new(
+        Theme::Dark,
+        Player::new()?,
+        std::iter::empty(),
+        vec![capsule::audio::OutputDevice::System],
+    );
     app.sidebar_expanded = false;
     app.screen = Screen::Settings;
     let mut renderer = iced::futures::executor::block_on(iced::Renderer::new(
@@ -861,7 +951,12 @@ fn vertical_volume_popup_works_at_normal_and_minimum_widths() -> anyhow::Result<
         UserInterface,
         core::{clipboard, mouse, renderer::Headless},
     };
-    let mut app = App::new(Theme::Dark, Player::new()?, std::iter::empty());
+    let mut app = App::new(
+        Theme::Dark,
+        Player::new()?,
+        std::iter::empty(),
+        vec![capsule::audio::OutputDevice::System],
+    );
     let mut renderer = iced::futures::executor::block_on(iced::Renderer::new(
         iced::Font::DEFAULT,
         iced::Pixels(13.),
@@ -964,5 +1059,26 @@ fn vertical_volume_popup_works_at_normal_and_minimum_widths() -> anyhow::Result<
             "dismissal does not activate sidebar navigation"
         );
     }
+    Ok(())
+}
+
+#[test]
+fn app_uses_the_supplied_output_devices() -> anyhow::Result<()> {
+    let app = App::new(
+        Theme::Dark,
+        Player::new()?,
+        std::iter::empty(),
+        vec![
+            OutputDevice::System,
+            OutputDevice::Named(String::from("Headless test output")),
+        ],
+    );
+    assert_eq!(
+        app.devices,
+        vec![
+            OutputDevice::System,
+            OutputDevice::Named(String::from("Headless test output"))
+        ]
+    );
     Ok(())
 }

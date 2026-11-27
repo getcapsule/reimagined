@@ -724,6 +724,7 @@ mod tests {
             iced::Theme::Dark,
             capsule::audio::Player::new()?,
             std::iter::empty(),
+            vec![capsule::audio::OutputDevice::System],
         );
         app.discover = fixture();
         let id = app.discover.picks()[0].track.id.clone();

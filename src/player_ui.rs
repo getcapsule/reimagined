@@ -31,7 +31,12 @@ pub(super) fn run(player: Player, paths: impl Iterator<Item = PathBuf> + 'static
     );
     let paths: Vec<_> = paths.collect();
     let boot = move || {
-        let mut app = App::new(theme.clone(), player.clone(), paths.iter().cloned());
+        let mut app = App::new(
+            theme.clone(),
+            player.clone(),
+            paths.iter().cloned(),
+            OutputDevice::available(),
+        );
         let task = Task::batch([
             app.sync_art(),
             app.discover.refresh(app.youtube.clone()),
@@ -241,7 +246,12 @@ impl App {
             self.discover.backdrop()
         }
     }
-    fn new(theme: Theme, player: Player, paths: impl Iterator<Item = PathBuf>) -> Self {
+    fn new(
+        theme: Theme,
+        player: Player,
+        paths: impl Iterator<Item = PathBuf>,
+        devices: Vec<OutputDevice>,
+    ) -> Self {
         let mut app = App {
             theme,
             player,
@@ -273,7 +283,7 @@ impl App {
             transport: Transport::Idle,
             info: None,
             device: OutputDevice::System,
-            devices: OutputDevice::available(),
+            devices,
             volume: 65,
             scrub: None,
         };
