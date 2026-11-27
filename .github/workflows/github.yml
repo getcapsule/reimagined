@@ -1,0 +1,121 @@
+name: Build and check
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+  CARGO_INCREMENTAL: "0"
+  CARGO_BUILD_JOBS: "2"
+  CMAKE_BUILD_PARALLEL_LEVEL: "2"
+  RUST_VERSION: "1.94.1"
+
+jobs:
+  format:
+    name: Formatting
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@39008827e6b4319a349e9a42dfc90579dd25f1ca # stable action
+        with:
+          toolchain: ${{ env.RUST_VERSION }}
+          components: rustfmt
+      - run: cargo fmt --all --check
+
+  build:
+    name: ${{ matrix.name }}
+    needs: format
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Windows x86_64
+            os: windows-latest
+            target: x86_64-pc-windows-msvc
+            artifact: windows-x86_64
+          - name: Linux x86_64
+            os: ubuntu-22.04
+            target: x86_64-unknown-linux-gnu
+            artifact: linux-x86_64
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install Linux build dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends -y \
+            build-essential cmake ninja-build pkg-config \
+            libasound2-dev libudev-dev libxkbcommon-dev libwayland-dev \
+            libegl1-mesa-dev libgl1-mesa-dev fonts-dejavu-core
+
+      - name: Configure Windows C++ compiler
+        if: runner.os == 'Windows'
+        uses: ilammy/msvc-dev-cmd@0b201ec74fa43914dc39ae48a89fd1d8cb592756 # v1
+        with:
+          arch: x64
+
+      - uses: dtolnay/rust-toolchain@39008827e6b4319a349e9a42dfc90579dd25f1ca # stable action
+        with:
+          toolchain: ${{ env.RUST_VERSION }}
+          targets: ${{ matrix.target }}
+          components: clippy
+
+      - uses: Swatinem/rust-cache@2201cc584a476d1b508be977bbe4b7d1c7a52e9c # v2.9.3
+        with:
+          key: ${{ matrix.target }}
+
+      - name: Check native build tools
+        run: cmake --version
+
+      - name: Clippy
+        run: cargo clippy --locked --release --all-targets --target ${{ matrix.target }} -- -D warnings
+
+      - name: Tests
+        env:
+          CAPSULE_DATA_DIR: ${{ runner.temp }}/capsule-ci
+        run: cargo test --locked --release --target ${{ matrix.target }}
+
+      - name: Build release executable
+        run: cargo build --locked --release --bin capsule --target ${{ matrix.target }}
+
+      - name: Package Windows build
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path dist, package | Out-Null
+          Copy-Item -LiteralPath 'target/${{ matrix.target }}/release/capsule.exe' -Destination package
+          Copy-Item -LiteralPath LICENSE -Destination package
+          Compress-Archive -Path package/* -DestinationPath 'dist/capsule-${{ matrix.artifact }}.zip'
+
+      - name: Package Linux build
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          mkdir -p dist package
+          install -m 755 'target/${{ matrix.target }}/release/capsule' package/capsule
+          install -m 644 LICENSE package/LICENSE
+          tar -czf 'dist/capsule-${{ matrix.artifact }}.tar.gz' -C package capsule LICENSE
+
+      - name: Upload build
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: capsule-${{ matrix.artifact }}
+          path: dist/*
+          if-no-files-found: error
+          retention-days: 14
