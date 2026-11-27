@@ -1,16 +1,24 @@
-name: Build and check
+name: Build, check and release
 
 on:
   push:
+    branches: ["**"]
+    tags: ["v*"]
   pull_request:
   workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing version tag to release (leave empty for checks only)
+        required: false
+        default: ""
+        type: string
 
 permissions:
   contents: read
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  group: ${{ github.workflow }}-${{ inputs.tag && format('refs/tags/{0}', inputs.tag) || github.ref }}
+  cancel-in-progress: ${{ !(startsWith(github.ref, 'refs/tags/v') || inputs.tag != '') }}
 
 env:
   CARGO_TERM_COLOR: always
@@ -27,10 +35,22 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+          ref: ${{ inputs.tag && format('refs/tags/{0}', inputs.tag) || github.ref }}
       - uses: dtolnay/rust-toolchain@39008827e6b4319a349e9a42dfc90579dd25f1ca # stable action
         with:
           toolchain: ${{ env.RUST_VERSION }}
           components: rustfmt
+      - name: Verify release version
+        if: startsWith(github.ref, 'refs/tags/v') || inputs.tag != ''
+        shell: bash
+        env:
+          RELEASE_TAG: ${{ inputs.tag || github.ref_name }}
+        run: |
+          version=$(cargo metadata --locked --no-deps --format-version 1 | python3 -c 'import json, sys; print(next(p["version"] for p in json.load(sys.stdin)["packages"] if p["name"] == "capsule"))')
+          if [[ "$RELEASE_TAG" != "v$version" ]]; then
+            echo "::error::Release tag must match Cargo.toml: expected v$version."
+            exit 1
+          fi
       - run: cargo fmt --all --check
 
   build:
@@ -54,6 +74,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+          ref: ${{ inputs.tag && format('refs/tags/{0}', inputs.tag) || github.ref }}
 
       - name: Install Linux build dependencies
         if: runner.os == 'Linux'
@@ -119,3 +140,58 @@ jobs:
           path: dist/*
           if-no-files-found: error
           retention-days: 14
+
+  release:
+    name: Publish release
+    needs: build
+    if: (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')) || (github.event_name == 'workflow_dispatch' && inputs.tag != '')
+    runs-on: ubuntu-22.04
+    timeout-minutes: 10
+    permissions:
+      contents: write
+      actions: read
+    steps:
+      - name: Download platform builds
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          pattern: capsule-*
+          merge-multiple: true
+          path: dist
+
+      - name: Publish platform builds
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_TAG: ${{ inputs.tag || github.ref_name }}
+        run: |
+          assets=(dist/capsule-windows-x86_64.zip dist/capsule-linux-x86_64.tar.gz)
+          for asset in "${assets[@]}"; do
+            test -s "$asset"
+          done
+
+          state=$(gh release view "$RELEASE_TAG" --json isDraft --jq '.isDraft' 2>/dev/null || true)
+          if [[ "$state" == false ]]; then
+            names=$(gh release view "$RELEASE_TAG" --json assets --jq '.assets[].name')
+            for asset in "${assets[@]}"; do
+              if ! grep -Fxq "${asset##*/}" <<< "$names"; then
+                echo "::error::The published release is missing ${asset##*/}."
+                exit 1
+              fi
+            done
+            echo "Release $RELEASE_TAG is already published with both platform builds."
+            exit 0
+          fi
+
+          if [[ "$state" != true ]]; then
+            gh release create "$RELEASE_TAG" --verify-tag --draft \
+              --title "capsule $RELEASE_TAG" --generate-notes
+          fi
+          gh release upload "$RELEASE_TAG" "${assets[@]}" --clobber
+
+          prerelease=false
+          version_without_metadata="${RELEASE_TAG%%+*}"
+          if [[ "$version_without_metadata" == *-* ]]; then
+            prerelease=true
+          fi
+          gh release edit "$RELEASE_TAG" --draft=false --prerelease="$prerelease"
